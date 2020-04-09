@@ -1,0 +1,73 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Dec  2 19:27:28 2019
+
+@author: LO
+"""
+import pickle
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def show(profit):
+    profit = np.array(profit)
+    profit2 = np.cumsum(profit)     
+    fig1 = plt.figure(1) 
+    plt.plot(profit2)
+    plt.title('Accumulated Profit')
+    fig1.show()
+    fig2 = plt.figure(2)
+    plt.hist(profit,bins=100)
+    plt.title('Profit Histogram')
+    fig2.show()
+    
+
+file = open("SP500.pickle","rb")
+SP500 = pickle.load(file)
+file.close()
+
+
+trademoth = list(set(SP500[0]['Date']//100))
+trademoth.sort()
+
+#策略3.0
+#找出針對所有公司股價獲利最大化的停損停利價格
+#以月為單位月初買入，停損停利，月末平倉
+best_m = 10#停利
+best_n = 10#停損
+best_total = -1000000000000
+best_profit = []
+for n in range(10,151,10):
+    for m in range(n,151,10):
+        total_profit=[]
+        for i in range(len(SP500)):
+            corp_profit = []
+            for j in range(len(trademoth)):
+                month = trademoth[j]
+                idx = np.nonzero(SP500[i]['Date']//100==month)[0]
+                idx.sort()
+                if np.isnan(SP500[i]['Open'][idx[0]]) or np.isnan(SP500[i]['Close'][idx[-1]]):#沒資料者不算
+                    continue                
+                p1 = SP500[i]['Open'][idx[0]]
+                idx2 = np.nonzero(SP500[i]['Low'][idx]<=p1-n)[0]#發生停損
+                idx3 = np.nonzero(SP500[i]['High'][idx]>=p1+m)[0]#發生停利
+                if(len(idx2)==0 and len(idx3)==0):#無停損停利
+                    p2 = SP500[i]['Close'][idx[-1]]
+                elif len(idx3)==0:#只有停損
+                    p2 = p1-n
+                elif len(idx2)==0:#只有停利
+                    p2 = p1+m
+                elif idx2[0]<idx3[0]:#兩個都有，停損較早
+                    p2 = p1-n
+                else:#兩個都有，停利較早
+                    p2 = p1+m  
+                corp_profit.append(p2-p1)
+            total_profit.append(np.sum(corp_profit))
+        if(np.sum(total_profit)>best_total):
+            best_total = np.sum(total_profit)
+            best_profit = total_profit
+            best_m = m
+            best_n = n
+        print("n:",n," m:",m," profit:",int(np.sum(total_profit))," current best:",int(best_total))
+show(best_profit)          
+print("best_n:",best_n,"\nbest_m:",best_m,"\nbest_total:",best_total)
